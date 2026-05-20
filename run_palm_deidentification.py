@@ -71,6 +71,12 @@ def parse_args():
         help="SAM2 config name or path. The default uses the config packaged with SAM 2.",
     )
     parser.add_argument("--seed", type=int, default=123, help="Global random seed.")
+    parser.add_argument(
+        "--generator-seed",
+        type=int,
+        default=None,
+        help="Seed for diffusion initial noise. Defaults to --seed when omitted.",
+    )
     return parser.parse_args()
 
 
@@ -300,10 +306,12 @@ def run_deidentification(args):
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    generator_seed = args.seed if args.generator_seed is None else args.generator_seed
     inpainter = PalmInpainter(
         checkpoint_path=args.checkpoint_path,
         config_path=args.config_path,
         seed=args.seed,
+        generator_seed=generator_seed,
     )
 
     sam_predictor = SAM2ImagePredictor(build_sam2(args.sam_config, args.sam_checkpoint))

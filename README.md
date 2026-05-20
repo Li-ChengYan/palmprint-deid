@@ -11,57 +11,63 @@ Official open-source implementation of **"Palmprint De-Identification Using Diff
 
 ## Overview
 
-This repository contains the official code release for our palmprint de-identification pipeline. The method is built on a diffusion inpainting framework and improves palmprint privacy protection through semantic-guided embedding fusion and prior interpolation, aiming at high-quality and diverse synthesized outputs.
+This repository contains the official code release for the palmprint de-identification pipeline. The method uses a diffusion inpainting framework with semantic-guided embedding fusion and prior interpolation to synthesize high-quality de-identified palmprint images.
 
-This README treats the current directory as the main project directory for the released code.
-
-By default, the code resolves `checkpoints/` and `configs/` relative to this directory, so you do not need to launch the script from a specific parent folder.
+The code resolves `checkpoints/` and `configs/` relative to this project directory.
 
 ## Project Structure
 
 ```text
 palm_inpainter.py
 run_palm_deidentification.py
+run_evaluation.py
+cal_fid.py
+cal_lpips.py
+cal_similarity.py
+evaluation_utils.py
 README.md
 checkpoints/
   model.ckpt
   sam2.1_hiera_large.pt
 configs/
   palmprint_deid_inference.yaml
+  evaluation_direct_images.json
 ```
 
-## Environment Requirements
+## Environment
 
-- Python 3.10 is recommended.
-- A CUDA-capable GPU is recommended for practical inference.
-- `torch>=2.5.1` and `torchvision>=0.20.1` are required by SAM 2.
-- Linux is recommended. If you are using Windows, the SAM 2 team strongly recommends WSL with Ubuntu.
+The environment follows the union of the upstream SAM 2 and Paint-by-Example requirements, using the newer PyTorch stack required by SAM 2.
+
+| Item | Version / specification |
+| --- | --- |
+| Python | 3.10 |
+| PyTorch | 2.5.1 |
+| TorchVision | 0.20.1 |
+| GPU used in experiments | NVIDIA GeForce RTX 4090 |
+
+Install SAM 2, Paint-by-Example, and WiLoR-mini using their upstream instructions. SAM 2 requires the newer PyTorch stack above; Paint-by-Example provides the `ldm` modules and CLIP conditioning implementation used by this release.
 
 ## Installation
 
-Create a fresh Python 3.10 environment first:
+Create a fresh Python 3.10 environment:
 
 ```bash
 conda create -n palmprint-deid python=3.10
 conda activate palmprint-deid
 ```
 
-Then install PyTorch and TorchVision following the official PyTorch instructions for your CUDA version:
+Install PyTorch and TorchVision:
 
 ```bash
-# See https://pytorch.org/get-started/locally/ for the exact command.
+pip install torch==2.5.1 torchvision==0.20.1
 ```
 
-After that, install the upstream dependencies required by this project:
-
-1. Prepare Paint-by-Example so that the `ldm` modules are available:
+Prepare the upstream dependencies:
 
 ```bash
 git clone https://github.com/Fantasy-Studio/Paint-by-Example.git
 cd Paint-by-Example
 ```
-
-2. Install SAM 2:
 
 ```bash
 git clone https://github.com/facebookresearch/sam2.git
@@ -69,53 +75,26 @@ cd sam2
 pip install -e .
 ```
 
-3. Install WiLoR-mini:
-
 ```bash
 pip install git+https://github.com/warmshao/WiLoR-mini
 ```
 
-Notes:
-- The official SAM 2 repository requires `python>=3.10`, `torch>=2.5.1`, and `torchvision>=0.20.1`.
-- WiLoR-mini also recommends Python 3.10.
-- This project reuses the `ldm` modules from Paint-by-Example, so the Paint-by-Example source tree should remain available in your environment.
+Keep the Paint-by-Example source tree available so that the `ldm` modules can be imported.
 
-## Model Preparation
+## Pretrained Models
 
-Create the directory `checkpoints/` before downloading the checkpoints.
+Create `checkpoints/` and place the following official checkpoints in it.
 
-Then prepare the following files.
-
-### 1. Paint-by-Example checkpoint
-
-Download the official `model.ckpt` released by the Paint-by-Example authors:
-
-- Hugging Face: [model.ckpt](https://huggingface.co/Fantasy-Studio/Paint-by-Example/resolve/main/model.ckpt)
-- Google Drive: [official shared checkpoint](https://drive.google.com/file/d/15QzaTWsvZonJcXsNv-ilMRCYaQLhzR_i/view?usp=share_link)
-
-Save it as:
-
-```text
-checkpoints/model.ckpt
-```
-
-### 2. SAM 2 checkpoint
-
-Download the official SAM 2.1 large checkpoint:
-
-- [sam2.1_hiera_large.pt](https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt)
-
-Save it as:
-
-```text
-checkpoints/sam2.1_hiera_large.pt
-```
+| Component | Source | Local path |
+| --- | --- | --- |
+| Diffusion inpainting model | Paint-by-Example official `model.ckpt` from [Hugging Face](https://huggingface.co/Fantasy-Studio/Paint-by-Example/resolve/main/model.ckpt) or the authors' [Google Drive](https://drive.google.com/file/d/15QzaTWsvZonJcXsNv-ilMRCYaQLhzR_i/view?usp=share_link) | `checkpoints/model.ckpt` |
+| CLIP image encoder | Paint-by-Example internal `FrozenCLIPImageEmbedder` conditioning branch, configured in `configs/palmprint_deid_inference.yaml` | included through Paint-by-Example / `model.ckpt` |
+| SAM 2 segmentation model | Official SAM 2.1 Hiera-L checkpoint [sam2.1_hiera_large.pt](https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt) | `checkpoints/sam2.1_hiera_large.pt` |
+| Hand keypoint detector | [WiLoR-mini](https://github.com/warmshao/WiLoR-mini) package used by `run_palm_deidentification.py` | installed as a Python package |
 
 ## Inference
 
-After preparing the environment and checkpoints, run:
-
-Minimal command with default parameters:
+Minimal command:
 
 ```bash
 python run_palm_deidentification.py \
@@ -133,10 +112,12 @@ python run_palm_deidentification.py \
   --config-path configs/palmprint_deid_inference.yaml \
   --sam-checkpoint checkpoints/sam2.1_hiera_large.pt \
   --reference-mode fusion \
-  --interpolation-ratio 0.1
+  --interpolation-ratio 0.1 \
+  --seed 123 \
+  --generator-seed 123
 ```
 
-Example input directory:
+Input directory:
 
 ```text
 input_images/
@@ -145,7 +126,7 @@ input_images/
   sample_003.bmp
 ```
 
-Example output directory:
+Output directory:
 
 ```text
 output_images/
@@ -155,17 +136,67 @@ output_images/
 ```
 
 Main arguments:
-- `--input-dir`: directory containing the palmprint images to process
-- `--output-dir`: directory for the de-identified results
-- `--checkpoint-path`: path to the Paint-by-Example `model.ckpt`
-- `--config-path`: path to this repository's inference config
-- `--sam-checkpoint`: path to `sam2.1_hiera_large.pt`
-- `--reference-mode`: one of `fusion`, `global`, or `local`
-- `--interpolation-ratio`: interpolation weight used in latent blending
+
+- `--input-dir`: directory containing palmprint images.
+- `--output-dir`: directory for de-identified results.
+- `--checkpoint-path`: Paint-by-Example diffusion checkpoint.
+- `--config-path`: diffusion inference config.
+- `--sam-checkpoint`: SAM 2.1 Hiera-L checkpoint.
+- `--sam-config`: SAM 2 config name or path. The default uses the config packaged with SAM 2.
+- `--reference-mode`: one of `fusion`, `global`, or `local`.
+- `--interpolation-ratio`: interpolation weight used in latent blending.
+- `--seed`: global random seed. Default: `123`.
+- `--generator-seed`: diffusion initial-noise seed. If omitted, it defaults to `--seed`.
+
+Random seed handling: `--seed` is applied to Python `random`, NumPy, PyTorch CPU/CUDA RNGs, `PYTHONHASHSEED`, and CuDNN deterministic flags. `--generator-seed` controls the latent diffusion start code used by `PalmInpainter`.
+
+## Evaluation
+
+The released evaluation protocol directly compares two image folders:
+
+- `original_dir`: original palmprint images.
+- `modified_dir`: de-identified images generated by this method or a baseline.
+- Default filename rule: `sample.png` in `original_dir` matches `sample_de-id.png` in `modified_dir`.
+
+Run all released image-quality metrics with the config file:
+
+```bash
+python run_evaluation.py \
+  --config configs/evaluation_direct_images.json \
+  --original-dir /path/to/original_images \
+  --modified-dir /path/to/deidentified_images \
+  --output-dir evaluation_results
+```
+
+The config file [configs/evaluation_direct_images.json](configs/evaluation_direct_images.json) records the default direct-image evaluation settings. The unified runner writes:
+
+```text
+evaluation_results/
+  summary.json
+  similarity.json
+  lpips.json
+  fid.json
+```
+
+Individual metrics can also be run directly:
+
+```bash
+python cal_similarity.py --original-dir /path/to/original_images --modified-dir /path/to/deidentified_images
+python cal_lpips.py --original-dir /path/to/original_images --modified-dir /path/to/deidentified_images
+python cal_fid.py --original-dir /path/to/original_images --modified-dir /path/to/deidentified_images
+```
+
+Released metrics:
+
+- FID
+- LPIPS
+- PSNR
+- SSIM
+- MS-SSIM
 
 ## Acknowledgements
 
-This project builds on several excellent open-source projects. We sincerely thank their authors and maintainers:
+This project builds on several open-source projects:
 
 - [Paint-by-Example](https://github.com/Fantasy-Studio/Paint-by-Example)
 - [SAM 2](https://github.com/facebookresearch/sam2)
@@ -174,7 +205,7 @@ This project builds on several excellent open-source projects. We sincerely than
 
 ## Citation
 
-If you find this project useful, please consider citing our paper:
+If you find this project useful, please cite:
 
 ```bibtex
 @article{yan2025palmprintdeid,
