@@ -1,0 +1,15 @@
+{
+  "original_dir": "data/original_images",
+  "modified_dir": "outputs/deidentified_images",
+  "output_dir": "evaluation_results",
+  "suffix": "_de-id",
+  "metrics": ["similarity", "lpips", "fid"],
+  "resize_max_side": 2000,
+  "resize_min_side": 161,
+  "resize_small_side": 200,
+  "workers": null,
+  "lpips_net": "vgg",
+  "fid_batch_size": 50,
+  "fid_dims": 2048,
+  "fid_num_workers": 1
+}
