@@ -194,35 +194,6 @@ Released metrics:
 - SSIM
 - MS-SSIM
 
-## Computational Cost Profiling
-
-Use `profile_computational_cost.py` to report inference-only computational cost for the released method. The script profiles the de-identification inference pipeline without saving generated images or computing evaluation metrics.
-
-```bash
-python profile_computational_cost.py \
-  --model ours \
-  --checkpoint checkpoints/model.ckpt \
-  --config configs/palmprint_deid_inference.yaml \
-  --sam-checkpoint checkpoints/sam2.1_hiera_large.pt \
-  --image-dir /path/to/input_images \
-  --batch-size 1 \
-  --device cuda \
-  --warmup 20 \
-  --repeat 100 \
-  --input-size 3x512x512 \
-  --output computational_cost.csv
-```
-
-The script writes both `computational_cost.csv` and `computational_cost.md`. The markdown file contains a paper-ready table:
-
-```text
-| Method | Params (M) ↓ | FLOPs (G) ↓ | Latency (ms/image) ↓ | Peak GPU Memory (MB) ↓ |
-|---|---:|---:|---:|---:|
-| Ours | ... | ... | ... | ... |
-```
-
-FLOPs are computed only when an installed profiler such as `thop` or `fvcore` can handle the multi-stage inference graph. If FLOPs cannot be computed automatically, the script still reports parameter count, latency, and peak GPU memory with a clear warning.
-
 ## Acknowledgements
 
 This project builds on several open-source projects:
